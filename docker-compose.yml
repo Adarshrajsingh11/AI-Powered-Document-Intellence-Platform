@@ -1,0 +1,45 @@
+# Run everything:  docker compose up --build
+# Then open http://localhost:8080
+# Needs backend/.env (copy backend/.env.example). MONGODB_URI and UPLOAD_DIR are overridden below.
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      NODE_ENV: production
+      MONGODB_URI: mongodb://mongo:27017/documind
+      UPLOAD_DIR: /data/uploads
+      CLIENT_URL: http://localhost:8080
+    volumes:
+      - uploads-data:/data/uploads
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/web.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  mongo-data:
+  uploads-data:

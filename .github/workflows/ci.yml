@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            ai/package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix ai ci
+          npm --prefix backend ci
+          npm --prefix frontend ci
+      - name: Lint
+        run: npm run lint
+      - name: Test (ai + backend)
+        run: npm test
+      - name: Build frontend
+        run: npm run build:web
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -f infrastructure/docker/api.Dockerfile -t documind-api .
+      - name: Build web image
+        run: docker build -f infrastructure/docker/web.Dockerfile -t documind-web .
